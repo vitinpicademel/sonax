@@ -120,56 +120,52 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 1 (Pessoa/Retornar - Mais provável de ter os dados)
-      let imoviewData = await consultarAPIImoview('/Pessoa/Retornar', 'GET');
+      // TENTATIVA 1 (Padrão de Listagem): Cliente/Listar
+      let imoviewData = await consultarAPIImoview('/Cliente/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
       
       if (imoviewData) {
+        console.log('DEBUG JSON IMOVIEW (Cliente/Listar):', JSON.stringify(imoviewData, null, 2));
+        
+        // Se for uma lista/array, pegar o primeiro item
+        if (Array.isArray(imoviewData) && imoviewData.length > 0) {
+          imoviewData = imoviewData[0];
+          console.log('DEBUG JSON IMOVIEW (primeiro item da lista Cliente/Listar):', JSON.stringify(imoviewData, null, 2));
+        }
+        
         telefone = extrairTelefone(imoviewData);
       }
 
-      // TENTATIVA 2 (Pessoa/Listar - Busca genérica)
+      // TENTATIVA 2 (Busca Direta por ID): Cliente/Obter
       if (!telefone) {
-        console.log('Tentando Pessoa/Listar com palavraChave...');
-        const pessoaListData = await consultarAPIImoview('/Pessoa/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
+        console.log('Tentando Cliente/Obter...');
+        const clienteData = await consultarAPIImoview('/Cliente/Obter', 'GET');
         
-        if (pessoaListData) {
-          console.log('DEBUG JSON IMOVIEW (Pessoa/Listar):', JSON.stringify(pessoaListData, null, 2));
-          
-          // Se for uma lista/array, pegar o primeiro item
-          if (Array.isArray(pessoaListData) && pessoaListData.length > 0) {
-            imoviewData = pessoaListData[0];
-            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Pessoa/Listar):', JSON.stringify(imoviewData, null, 2));
-          } else {
-            imoviewData = pessoaListData;
+        if (clienteData) {
+          console.log('DEBUG JSON IMOVIEW (Cliente/Obter):', JSON.stringify(clienteData, null, 2));
+          telefone = extrairTelefone(clienteData);
+          if (telefone) {
+            imoviewData = clienteData;
           }
-          
-          telefone = extrairTelefone(imoviewData);
         }
       }
 
-      // TENTATIVA 2b (Pessoa/Listar com q)
+      // TENTATIVA 3 (Action Legada via POST): Cliente/Retornar
       if (!telefone) {
-        console.log('Tentando Pessoa/Listar com q...');
-        const pessoaListData2 = await consultarAPIImoview('/Pessoa/Listar', 'GET', { q: codigoAtendimento.toString() });
+        console.log('Tentando Cliente/Retornar via POST...');
+        const clienteRetornarData = await consultarAPIImoview('/Cliente/Retornar', 'POST');
         
-        if (pessoaListData2) {
-          console.log('DEBUG JSON IMOVIEW (Pessoa/Listar com q):', JSON.stringify(pessoaListData2, null, 2));
-          
-          // Se for uma lista/array, pegar o primeiro item
-          if (Array.isArray(pessoaListData2) && pessoaListData2.length > 0) {
-            imoviewData = pessoaListData2[0];
-            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Pessoa/Listar com q):', JSON.stringify(imoviewData, null, 2));
-          } else {
-            imoviewData = pessoaListData2;
+        if (clienteRetornarData) {
+          console.log('DEBUG JSON IMOVIEW (Cliente/Retornar POST):', JSON.stringify(clienteRetornarData, null, 2));
+          telefone = extrairTelefone(clienteRetornarData);
+          if (telefone) {
+            imoviewData = clienteRetornarData;
           }
-          
-          telefone = extrairTelefone(imoviewData);
         }
       }
 
-      // TENTATIVA 3 (Atendimento/Listar - Tentando via Query String)
+      // TENTATIVA 4 (Busca no Atendimento como Último Recurso): Atendimento/Listar
       if (!telefone) {
-        console.log('Tentando Atendimento/Listar com palavraChave...');
+        console.log('Tentando Atendimento/Listar como último recurso...');
         const atendimentoListData = await consultarAPIImoview('/Atendimento/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
         
         if (atendimentoListData) {

@@ -1,5 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Função de higienização de telefone
+function cleanPhoneNumber(phone: string): string {
+  if (!phone) return '';
+  
+  console.log(`Telefone original: ${phone}`);
+  
+  // Remover todos os caracteres que não sejam números
+  let cleaned = phone.replace(/\D/g, '');
+  
+  console.log(`Após remover caracteres não numéricos: ${cleaned}`);
+  
+  // Lógica de DDD Brasil: remover código do país (55) se presente
+  if (cleaned.length >= 12 && cleaned.startsWith('55')) {
+    cleaned = cleaned.substring(2);
+    console.log(`Após remover código do país (55): ${cleaned}`);
+  }
+  
+  console.log(`Telefone final limpo: ${cleaned}`);
+  return cleaned;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -124,13 +145,13 @@ export async function POST(request: NextRequest) {
       console.log(`Telefone encontrado diretamente no webhook: ${telefone}`);
     }
 
-    // Limpar o número de telefone (remover tudo que não for número)
-    const telefoneLimpo = telefone.replace(/\D/g, '');
+    // Aplicar higienização do telefone
+    const telefoneLimpo = cleanPhoneNumber(telefone);
     
     if (telefoneLimpo.length < 10) {
-      console.error('Número de telefone inválido:', telefone);
+      console.error('Número de telefone inválido após limpeza:', telefoneLimpo);
       return NextResponse.json(
-        { error: 'Número de telefone inválido' },
+        { error: 'Número de telefone inválido após limpeza' },
         { status: 400 }
       );
     }
@@ -184,6 +205,8 @@ export async function POST(request: NextRequest) {
       codigoAtendimento,
       telefone: telefoneLimpo,
       telefoneOriginal: telefone,
+      telefoneAntesLimpeza: telefone,
+      telefoneDepoisLimpeza: telefoneLimpo,
       sonaxResponse: sonaxResult
     });
 

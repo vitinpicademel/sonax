@@ -4,15 +4,87 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    // Extrair número de telefone do lead (verifica múltiplos campos possíveis)
-    const telefone = body.leads_celular || body.telefone || body.celular;
+    // Extrair código do atendimento
+    const codigoAtendimento = body.codigo;
     
-    if (!telefone) {
-      console.error('Nenhum número de telefone encontrado no webhook:', body);
+    if (!codigoAtendimento) {
+      console.error('Código do atendimento não encontrado no webhook:', body);
       return NextResponse.json(
-        { error: 'Telefone não encontrado' },
+        { error: 'Código do atendimento não encontrado' },
         { status: 400 }
       );
+    }
+
+    // Tentar extrair telefone direto do webhook primeiro (compatibilidade)
+    let telefone = body.leads_celular || body.telefone || body.celular;
+    
+    // Se não tiver telefone, buscar na API Imoview
+    if (!telefone) {
+      console.log(`Telefone não encontrado no webhook. Buscando dados do atendimento ${codigoAtendimento} na API Imoview...`);
+      
+      const imoviewKey = process.env.IMOVIEW_KEY;
+      if (!imoviewKey) {
+        console.error('Variável de ambiente IMOVIEW_KEY não configurada');
+        return NextResponse.json(
+          { error: 'Configuração da API Imoview ausente' },
+          { status: 500 }
+        );
+      }
+
+      // Construir URL da API Imoview
+      const imoviewUrl = new URL('https://api.imoview.com.br/atendimento/retornar');
+      imoviewUrl.searchParams.append('chave', imoviewKey);
+      imoviewUrl.searchParams.append('codigo', codigoAtendimento.toString());
+
+      console.log(`Consultando API Imoview: ${imoviewUrl.toString()}`);
+      
+      const imoviewResponse = await fetch(imoviewUrl.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!imoviewResponse.ok) {
+        const errorText = await imoviewResponse.text();
+        console.error('Erro na API Imoview:', imoviewResponse.status, errorText);
+        
+        return NextResponse.json({
+          success: false,
+          message: 'Erro ao consultar dados do atendimento na Imoview',
+          imoviewError: errorText
+        }, { status: 200 });
+      }
+
+      const imoviewData = await imoviewResponse.json();
+      console.log('Dados recebidos da API Imoview:', JSON.stringify(imoviewData, null, 2));
+
+      // Extrair telefone dos dados do cliente (verifica múltiplos campos possíveis)
+      if (imoviewData.cliente) {
+        telefone = imoviewData.cliente.celular || 
+                  imoviewData.cliente.telefone || 
+                  imoviewData.cliente.fone ||
+                  imoviewData.cliente.phone;
+      } else {
+        // Tentar encontrar telefone em outros campos possíveis
+        telefone = imoviewData.celular || 
+                  imoviewData.telefone || 
+                  imoviewData.fone ||
+                  imoviewData.phone;
+      }
+
+      if (!telefone) {
+        console.error('Telefone não encontrado nos dados do atendimento:', imoviewData);
+        return NextResponse.json({
+          success: false,
+          message: 'Telefone não encontrado nos dados do atendimento',
+          codigoAtendimento
+        }, { status: 200 });
+      }
+
+      console.log(`Telefone encontrado na API Imoview: ${telefone}`);
+    } else {
+      console.log(`Telefone encontrado diretamente no webhook: ${telefone}`);
     }
 
     // Limpar o número de telefone (remover tudo que não for número)
@@ -72,7 +144,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Chamada disparada com sucesso',
+      codigoAtendimento,
       telefone: telefoneLimpo,
+      telefoneOriginal: telefone,
       sonaxResponse: sonaxResult
     });
 

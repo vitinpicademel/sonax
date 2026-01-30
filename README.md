@@ -4,9 +4,10 @@ Esta aplicação Next.js funciona como ponte entre o CRM Imoview e a discadora S
 
 ## Como Funciona
 
-1. **Webhook Imoview**: Quando um lead entra no Imoview, ele envia um POST request para `/api/webhook-imoview`
-2. **Processamento**: A função extrai o número de telefone, limpa e formata
-3. **Integração Sonax**: Faz uma requisição para a API Sonax disparando a chamada automática
+1. **Webhook Imoview**: Quando um lead entra no Imoview, ele envia um POST request para `/api/webhook-imoview` com o `codigo` do atendimento
+2. **Consulta API Imoview**: Se o telefone não vier no webhook, a função consulta a API Imoview para buscar os dados completos do atendimento
+3. **Processamento**: A função extrai o número de telefone dos dados do cliente e limpa o formato
+4. **Integração Sonax**: Faz uma requisição para a API Sonax disparando a chamada automática
 
 ## Configuração
 
@@ -22,6 +23,7 @@ Configure as seguintes variáveis:
 
 - `SONAX_QUEUE_ID`: ID da fila na Sonax
 - `SONAX_TOKEN`: Token de autenticação da API Sonax
+- `IMOVIEW_KEY`: Chave de API do Imoview para consulta de atendimentos
 
 ### Configuração na Vercel
 
@@ -31,6 +33,7 @@ Configure as seguintes variáveis:
    - Adicione:
      - `SONAX_QUEUE_ID` (seu ID de fila)
      - `SONAX_TOKEN` (seu token da API)
+     - `IMOVIEW_KEY` (sua chave de API Imoview)
 
 ## Endpoint do Webhook
 
@@ -42,16 +45,31 @@ POST https://seu-domínio.vercel.app/api/webhook-imoview
 
 ```json
 {
-  "leads_celular": "(11) 98765-4321",
-  "nome": "João Silva",
-  "email": "joao@email.com"
+  "codigo": 21290
 }
 ```
 
-A função aceita os seguintes campos para telefone:
-- `leads_celular`
-- `telefone` 
-- `celular`
+A função também mantém compatibilidade com webhooks que enviam o telefone diretamente:
+
+```json
+{
+  "leads_celular": "(11) 98765-4321",
+  "codigo": 21290
+}
+```
+
+## Fluxo de Processamento
+
+1. **Recebimento**: Extrai o `codigo` do atendimento do webhook
+2. **Verificação**: Tenta encontrar telefone direto no webhook (compatibilidade)
+3. **Consulta**: Se não encontrar telefone, consulta API Imoview:
+   - Endpoint: `https://api.imoview.com.br/atendimento/retornar`
+   - Parâmetros: `chave` (IMOVIEW_KEY) e `codigo` (do webhook)
+4. **Extração**: Busca telefone em múltiplos campos:
+   - `cliente.celular`, `cliente.telefone`, `cliente.fone`, `cliente.phone`
+   - `celular`, `telefone`, `fone`, `phone`
+5. **Limpeza**: Remove caracteres não numéricos do telefone
+6. **Disparo**: Envia para API Sonax
 
 ## Respostas
 
@@ -60,7 +78,9 @@ A função aceita os seguintes campos para telefone:
 {
   "success": true,
   "message": "Chamada disparada com sucesso",
+  "codigoAtendimento": 21290,
   "telefone": "11987654321",
+  "telefoneOriginal": "(11) 98765-4321",
   "sonaxResponse": { ... }
 }
 ```
@@ -69,16 +89,18 @@ A função aceita os seguintes campos para telefone:
 ```json
 {
   "success": false,
-  "message": "Erro ao processar chamada na Sonax",
-  "sonaxError": "..."
+  "message": "Telefone não encontrado nos dados do atendimento",
+  "codigoAtendimento": 21290
 }
 ```
 
 ## Logs
 
 A aplicação loga no console:
-- Recebimento de webhooks
-- Processamento de telefones  
+- Recebimento de webhooks e códigos de atendimento
+- Consultas à API Imoview
+- Dados recebidos da API Imoview (formatado)
+- Extração de telefones encontrados
 - Sucesso/erro na chamada da Sonax
 - Erros de configuração
 
@@ -90,3 +112,4 @@ Settings → Functions → Logs
 - Todas as credenciais ficam em variáveis de ambiente
 - A API retorna sempre 200 para evitar reenvios infinitos
 - Validação de formato de telefone antes de enviar para Sonax
+- Logs detalhados para debugging sem expor dados sensíveis

@@ -156,24 +156,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // TENTATIVA 3 (Atendimento App_Retornar - Fallback)
-      if (!telefone) {
-        console.log('Tentando Atendimento/App_Retornar...');
-        const atendimentoData = await consultarAPIImoview('/Atendimento/App_Retornar', 'GET', { 
-          codigoUsuario: '1',
-          codigoAtendimento: codigoAtendimento.toString()
-        });
-        
-        if (atendimentoData) {
-          console.log('DEBUG JSON IMOVIEW (Atendimento/App_Retornar):', JSON.stringify(atendimentoData, null, 2));
-          telefone = extrairTelefone(atendimentoData);
-          if (telefone) {
-            imoviewData = atendimentoData;
-          }
-        }
-      }
-
-      // TENTATIVA 4 (Busca Genérica com textoPesquisa)
+      // TENTATIVA 3 (Busca Genérica com textoPesquisa)
       if (!telefone) {
         console.log('Tentando busca genérica com textoPesquisa...');
         const buscaData = await consultarAPIImoview('/Atendimento/App_RetornarAtendimentos', 'GET', { 

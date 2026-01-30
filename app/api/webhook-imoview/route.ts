@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
       let imoviewData = await consultarAPIImoview('/Atendimento/Retornar');
       
       if (imoviewData) {
+        console.log('DEBUG API IMOVIEW (Atendimento):', JSON.stringify(imoviewData, null, 2));
         telefone = extrairTelefone(imoviewData);
       }
 
@@ -124,6 +125,7 @@ export async function POST(request: NextRequest) {
         const interessadoData = await consultarAPIImoview('/Interessado/Retornar');
         
         if (interessadoData) {
+          console.log('DEBUG API IMOVIEW (Interessado):', JSON.stringify(interessadoData, null, 2));
           telefone = extrairTelefone(interessadoData);
           if (telefone) {
             imoviewData = interessadoData;

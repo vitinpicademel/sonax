@@ -61,7 +61,12 @@ export async function POST(request: NextRequest) {
 
       // Função para consultar API Imoview
       const consultarAPIImoview = async (endpoint: string): Promise<any> => {
-        const url = new URL(`https://api.imoview.com.br${endpoint}`);
+        // URLs hardcoded com case sensitivity correto
+        const baseUrl = 'https://api.imoview.com.br';
+        const fullUrl = `${baseUrl}${endpoint}`;
+        
+        // Construir URL com parâmetros
+        const url = new URL(fullUrl);
         url.searchParams.append('chave', imoviewKey);
         url.searchParams.append('codigo', codigoAtendimento.toString());
 
@@ -85,14 +90,14 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // Tentar primeiro endpoint Atendimento/Retornar
+      // Tentar primeiro endpoint Atendimento/Retornar (EXATO com maiúsculas)
       let imoviewData = await consultarAPIImoview('/Atendimento/Retornar');
       
       if (imoviewData) {
         telefone = extrairTelefone(imoviewData);
       }
 
-      // Se não encontrou telefone ou dados vazios, tentar endpoint Interessado/Retornar
+      // Se não encontrou telefone ou dados vazios, tentar endpoint Interessado/Retornar (EXATO com maiúsculas)
       if (!telefone || !imoviewData) {
         console.log('Tentando endpoint alternativo Interessado/Retornar...');
         const interessadoData = await consultarAPIImoview('/Interessado/Retornar');

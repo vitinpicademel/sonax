@@ -120,76 +120,59 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 0 (Teste Simples - Usuario/RetornarTipo1)
+      // TENTATIVA 1 (Usuario/RetornarTipo1 - Não precisa de codigoacesso)
       let imoviewData = await consultarAPIImoview('/Usuario/RetornarTipo1', 'GET', { 
-        cpfOuCnpj: '12345678901' // CPF genérico para teste
+        cpfOuCnpj: codigoAtendimento.toString()
       });
       
       if (imoviewData) {
-        console.log('DEBUG JSON IMOVIEW (Usuario/RetornarTipo1 - Teste):', JSON.stringify(imoviewData, null, 2));
-        console.log('CHAVE API ESTÁ FUNCIONANDO! ✅');
-      } else {
-        console.log('ERRO: CHAVE API INVÁLIDA MESMO PARA ENDPOINT SIMPLES ❌');
-      }
-
-      // TENTATIVA 1 (Lead App_RetornarAtendimentos - Documentação Oficial)
-      if (!telefone) {
-        imoviewData = await consultarAPIImoview('/Lead/App_RetornarAtendimentos', 'GET', { 
-          numeroPagina: '1',
-          numeroRegistros: '100',
-          codigoUsuario: '1', // Usuário genérico
-          codigoCliente: codigoAtendimento.toString()
-        });
-        
-        if (imoviewData) {
-          console.log('DEBUG JSON IMOVIEW (Lead/App_RetornarAtendimentos):', JSON.stringify(imoviewData, null, 2));
-          
-          // Se for uma lista/array, pegar o primeiro item
-          if (Array.isArray(imoviewData.lista) && imoviewData.lista.length > 0) {
-            imoviewData = imoviewData.lista[0];
-            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Lead/App_RetornarAtendimentos):', JSON.stringify(imoviewData, null, 2));
-          }
-          
-          telefone = extrairTelefone(imoviewData);
+        console.log('DEBUG JSON IMOVIEW (Usuario/RetornarTipo1):', JSON.stringify(imoviewData, null, 2));
+        telefone = imoviewData.telefones || imoviewData.telefone || imoviewData.celular;
+        if (telefone) {
+          imoviewData = imoviewData;
         }
       }
 
-      // TENTATIVA 2 (Usuario/RetornarTipo1 - Por CPF/CNPJ se tiver)
-      if (!telefone) {
-        console.log('Tentando Usuario/RetornarTipo1 com código do atendimento...');
+      // TENTATIVA 2 (Tentar como CPF se o código for numérico longo)
+      if (!telefone && codigoAtendimento.toString().length >= 11) {
+        console.log('Tentando Usuario/RetornarTipo1 como CPF...');
         const usuarioData = await consultarAPIImoview('/Usuario/RetornarTipo1', 'GET', { 
           cpfOuCnpj: codigoAtendimento.toString()
         });
         
         if (usuarioData) {
-          console.log('DEBUG JSON IMOVIEW (Usuario/RetornarTipo1):', JSON.stringify(usuarioData, null, 2));
-          telefone = extrairTelefone(usuarioData);
+          console.log('DEBUG JSON IMOVIEW (Usuario/RetornarTipo1 CPF):', JSON.stringify(usuarioData, null, 2));
+          telefone = usuarioData.telefones || usuarioData.telefone || usuarioData.celular;
           if (telefone) {
             imoviewData = usuarioData;
           }
         }
       }
 
-      // TENTATIVA 3 (Busca Genérica com textoPesquisa)
+      // TENTATIVA 3 (Procurar endpoints sem App_ no Swagger)
       if (!telefone) {
-        console.log('Tentando busca genérica com textoPesquisa...');
-        const buscaData = await consultarAPIImoview('/Atendimento/App_RetornarAtendimentos', 'GET', { 
-          numeroPagina: '1',
-          numeroRegistros: '100',
-          codigoUsuario: '1',
-          textoPesquisa: codigoAtendimento.toString()
-        });
+        console.log('Tentando buscar endpoints alternativos sem App_...');
         
-        if (buscaData) {
-          console.log('DEBUG JSON IMOVIEW (busca genérica):', JSON.stringify(buscaData, null, 2));
+        // Vamos tentar alguns endpoints básicos que podem existir
+        const endpointsBasicos = [
+          '/Cliente/Retornar',
+          '/Atendimento/Retornar', 
+          '/Lead/Retornar',
+          '/Pessoa/Retornar'
+        ];
+        
+        for (const endpoint of endpointsBasicos) {
+          console.log(`Tentando endpoint básico: ${endpoint}`);
+          const testData = await consultarAPIImoview(endpoint, 'GET');
           
-          // Se for uma lista/array, pegar o primeiro item
-          if (Array.isArray(buscaData.lista) && buscaData.lista.length > 0) {
-            imoviewData = buscaData.lista[0];
-            console.log('DEBUG JSON IMOVIEW (primeiro item da busca genérica):', JSON.stringify(imoviewData, null, 2));
+          if (testData) {
+            console.log(`DEBUG JSON IMOVIEW (${endpoint}):`, JSON.stringify(testData, null, 2));
+            telefone = extrairTelefone(testData);
+            if (telefone) {
+              imoviewData = testData;
+              break;
+            }
           }
-          
-          telefone = extrairTelefone(imoviewData);
         }
       }
 

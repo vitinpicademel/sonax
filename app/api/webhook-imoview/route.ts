@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
                data.telefone_secundario;
       };
 
-      // Função para consultar API Imoview com suporte a diferentes versões
+      // Função para consultar API Imoview com múltiplas versões e métodos
       const consultarAPIImoview = async (endpoint: string, method: string = 'GET', parametrosAdicionais: Record<string, string> = {}): Promise<any> => {
         // URLs hardcoded com case sensitivity correto
         const baseUrl = 'https://api.imoview.com.br';
@@ -89,20 +89,14 @@ export async function POST(request: NextRequest) {
         // Construir URL com parâmetros
         const url = new URL(fullUrl);
         url.searchParams.append('chave', imoviewKey);
-        
-        // Para endpoints que usam 'id' em vez de 'codigo'
-        if (endpoint.includes('/Get')) {
-          url.searchParams.append('id', codigoAtendimento.toString());
-        } else {
-          url.searchParams.append('codigo', codigoAtendimento.toString());
-        }
+        url.searchParams.append('codigo', codigoAtendimento.toString());
         
         // Adicionar parâmetros adicionais
         Object.entries(parametrosAdicionais).forEach(([key, value]) => {
           url.searchParams.append(key, value);
         });
 
-        console.log(`Tentando endpoint: ${method} ${url.toString()}`);
+        console.log(`Tentando URL: ${url.toString()}`);
         
         const response = await fetch(url.toString(), {
           method: method,
@@ -126,43 +120,57 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 1 (API V2 Explícita): v2/Lead/Retornar
+      // TENTATIVA 1 (API V2 - Padrão Moderno): v2/Lead/Retornar
       let imoviewData = await consultarAPIImoview('/v2/Lead/Retornar', 'GET');
       
       if (imoviewData) {
         telefone = extrairTelefone(imoviewData);
       }
 
-      // TENTATIVA 2 (Nome em Inglês): Lead/Get com id
+      // TENTATIVA 2 (API V2 - Endpoint de Listagem): v2/Lead/Listar
       if (!telefone) {
-        console.log('Tentando Lead/Get com id...');
-        const leadData = await consultarAPIImoview('/Lead/Get', 'GET');
+        console.log('Tentando v2/Lead/Listar...');
+        const leadListData = await consultarAPIImoview('/v2/Lead/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
         
-        if (leadData) {
-          console.log('DEBUG JSON IMOVIEW (Lead/Get):', JSON.stringify(leadData, null, 2));
+        if (leadListData) {
+          console.log('DEBUG JSON IMOVIEW (v2/Lead/Listar):', JSON.stringify(leadListData, null, 2));
           
           // Se for uma lista/array, pegar o primeiro item
-          if (Array.isArray(leadData) && leadData.length > 0) {
-            imoviewData = leadData[0];
-            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Lead/Get):', JSON.stringify(imoviewData, null, 2));
+          if (Array.isArray(leadListData) && leadListData.length > 0) {
+            imoviewData = leadListData[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da lista v2/Lead/Listar):', JSON.stringify(imoviewData, null, 2));
           } else {
-            imoviewData = leadData;
+            imoviewData = leadListData;
           }
           
           telefone = extrairTelefone(imoviewData);
         }
       }
 
-      // TENTATIVA 3 (Busca de Pessoa/Contato Direto): Pessoa/Retornar
+      // TENTATIVA 3 (Fallback para Atendimento V2): v2/Atendimento/Retornar
       if (!telefone) {
-        console.log('Tentando Pessoa/Retornar...');
-        const pessoaData = await consultarAPIImoview('/Pessoa/Retornar', 'GET');
+        console.log('Tentando v2/Atendimento/Retornar...');
+        const atendimentoData = await consultarAPIImoview('/v2/Atendimento/Retornar', 'GET');
         
-        if (pessoaData) {
-          console.log('DEBUG JSON IMOVIEW (Pessoa/Retornar):', JSON.stringify(pessoaData, null, 2));
-          telefone = extrairTelefone(pessoaData);
+        if (atendimentoData) {
+          console.log('DEBUG JSON IMOVIEW (v2/Atendimento/Retornar):', JSON.stringify(atendimentoData, null, 2));
+          telefone = extrairTelefone(atendimentoData);
           if (telefone) {
-            imoviewData = pessoaData;
+            imoviewData = atendimentoData;
+          }
+        }
+      }
+
+      // TENTATIVA 4 (API Antiga com POST - Último recurso): Atendimento/Retornar
+      if (!telefone) {
+        console.log('Tentando Atendimento/Retornar via POST (último recurso)...');
+        const oldApiData = await consultarAPIImoview('/Atendimento/Retornar', 'POST');
+        
+        if (oldApiData) {
+          console.log('DEBUG JSON IMOVIEW (Atendimento/Retornar POST):', JSON.stringify(oldApiData, null, 2));
+          telefone = extrairTelefone(oldApiData);
+          if (telefone) {
+            imoviewData = oldApiData;
           }
         }
       }

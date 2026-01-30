@@ -120,63 +120,76 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 1 (Padrão de Listagem): Cliente/Listar
-      let imoviewData = await consultarAPIImoview('/Cliente/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
+      // TENTATIVA 1 (Lead App_RetornarAtendimentos - Documentação Oficial)
+      let imoviewData = await consultarAPIImoview('/Lead/App_RetornarAtendimentos', 'GET', { 
+        numeroPagina: '1',
+        numeroRegistros: '100',
+        codigoUsuario: '1', // Usuário genérico
+        codigoCliente: codigoAtendimento.toString()
+      });
       
       if (imoviewData) {
-        console.log('DEBUG JSON IMOVIEW (Cliente/Listar):', JSON.stringify(imoviewData, null, 2));
+        console.log('DEBUG JSON IMOVIEW (Lead/App_RetornarAtendimentos):', JSON.stringify(imoviewData, null, 2));
         
         // Se for uma lista/array, pegar o primeiro item
-        if (Array.isArray(imoviewData) && imoviewData.length > 0) {
-          imoviewData = imoviewData[0];
-          console.log('DEBUG JSON IMOVIEW (primeiro item da lista Cliente/Listar):', JSON.stringify(imoviewData, null, 2));
+        if (Array.isArray(imoviewData.lista) && imoviewData.lista.length > 0) {
+          imoviewData = imoviewData.lista[0];
+          console.log('DEBUG JSON IMOVIEW (primeiro item da lista Lead/App_RetornarAtendimentos):', JSON.stringify(imoviewData, null, 2));
         }
         
         telefone = extrairTelefone(imoviewData);
       }
 
-      // TENTATIVA 2 (Busca Direta por ID): Cliente/Obter
+      // TENTATIVA 2 (Usuario/RetornarTipo1 - Por CPF/CNPJ se tiver)
       if (!telefone) {
-        console.log('Tentando Cliente/Obter...');
-        const clienteData = await consultarAPIImoview('/Cliente/Obter', 'GET');
+        console.log('Tentando Usuario/RetornarTipo1...');
+        const usuarioData = await consultarAPIImoview('/Usuario/RetornarTipo1', 'GET', { 
+          cpfOuCnpj: codigoAtendimento.toString()
+        });
         
-        if (clienteData) {
-          console.log('DEBUG JSON IMOVIEW (Cliente/Obter):', JSON.stringify(clienteData, null, 2));
-          telefone = extrairTelefone(clienteData);
+        if (usuarioData) {
+          console.log('DEBUG JSON IMOVIEW (Usuario/RetornarTipo1):', JSON.stringify(usuarioData, null, 2));
+          telefone = extrairTelefone(usuarioData);
           if (telefone) {
-            imoviewData = clienteData;
+            imoviewData = usuarioData;
           }
         }
       }
 
-      // TENTATIVA 3 (Action Legada via POST): Cliente/Retornar
+      // TENTATIVA 3 (Atendimento App_Retornar - Fallback)
       if (!telefone) {
-        console.log('Tentando Cliente/Retornar via POST...');
-        const clienteRetornarData = await consultarAPIImoview('/Cliente/Retornar', 'POST');
+        console.log('Tentando Atendimento/App_Retornar...');
+        const atendimentoData = await consultarAPIImoview('/Atendimento/App_Retornar', 'GET', { 
+          codigoUsuario: '1',
+          codigoAtendimento: codigoAtendimento.toString()
+        });
         
-        if (clienteRetornarData) {
-          console.log('DEBUG JSON IMOVIEW (Cliente/Retornar POST):', JSON.stringify(clienteRetornarData, null, 2));
-          telefone = extrairTelefone(clienteRetornarData);
+        if (atendimentoData) {
+          console.log('DEBUG JSON IMOVIEW (Atendimento/App_Retornar):', JSON.stringify(atendimentoData, null, 2));
+          telefone = extrairTelefone(atendimentoData);
           if (telefone) {
-            imoviewData = clienteRetornarData;
+            imoviewData = atendimentoData;
           }
         }
       }
 
-      // TENTATIVA 4 (Busca no Atendimento como Último Recurso): Atendimento/Listar
+      // TENTATIVA 4 (Busca Genérica com textoPesquisa)
       if (!telefone) {
-        console.log('Tentando Atendimento/Listar como último recurso...');
-        const atendimentoListData = await consultarAPIImoview('/Atendimento/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
+        console.log('Tentando busca genérica com textoPesquisa...');
+        const buscaData = await consultarAPIImoview('/Atendimento/App_RetornarAtendimentos', 'GET', { 
+          numeroPagina: '1',
+          numeroRegistros: '100',
+          codigoUsuario: '1',
+          textoPesquisa: codigoAtendimento.toString()
+        });
         
-        if (atendimentoListData) {
-          console.log('DEBUG JSON IMOVIEW (Atendimento/Listar):', JSON.stringify(atendimentoListData, null, 2));
+        if (buscaData) {
+          console.log('DEBUG JSON IMOVIEW (busca genérica):', JSON.stringify(buscaData, null, 2));
           
           // Se for uma lista/array, pegar o primeiro item
-          if (Array.isArray(atendimentoListData) && atendimentoListData.length > 0) {
-            imoviewData = atendimentoListData[0];
-            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Atendimento/Listar):', JSON.stringify(imoviewData, null, 2));
-          } else {
-            imoviewData = atendimentoListData;
+          if (Array.isArray(buscaData.lista) && buscaData.lista.length > 0) {
+            imoviewData = buscaData.lista[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da busca genérica):', JSON.stringify(imoviewData, null, 2));
           }
           
           telefone = extrairTelefone(imoviewData);

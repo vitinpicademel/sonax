@@ -116,29 +116,15 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA PRINCIPAL: Lead/Retornar (Interessado foi renomeado para Lead na V2)
-      let imoviewData = await consultarAPIImoview('/Lead/Retornar');
+      // TENTATIVA 1 (Mais provável para Atendimentos): Atendimento/Obter
+      let imoviewData = await consultarAPIImoview('/Atendimento/Obter');
       
       if (imoviewData) {
-        console.log('DEBUG JSON IMOVIEW (Lead/Retornar):', JSON.stringify(imoviewData, null, 2));
+        console.log('DEBUG JSON IMOVIEW (Atendimento/Obter):', JSON.stringify(imoviewData, null, 2));
         telefone = extrairTelefone(imoviewData);
       }
 
-      // TENTATIVA SECUNDÁRIA: Cliente/Retornar
-      if (!telefone) {
-        console.log('Tentando Cliente/Retornar...');
-        const clienteData = await consultarAPIImoview('/Cliente/Retornar');
-        
-        if (clienteData) {
-          console.log('DEBUG JSON IMOVIEW (Cliente/Retornar):', JSON.stringify(clienteData, null, 2));
-          telefone = extrairTelefone(clienteData);
-          if (telefone) {
-            imoviewData = clienteData;
-          }
-        }
-      }
-
-      // TENTATIVA TERCIÁRIA: Atendimento/Listar (último caso)
+      // TENTATIVA 2 (Padrão de Listagem): Atendimento/Listar
       if (!telefone) {
         console.log('Tentando Atendimento/Listar...');
         const atendimentoData = await consultarAPIImoview('/Atendimento/Listar', { registrosPorPagina: '1' });
@@ -155,6 +141,20 @@ export async function POST(request: NextRequest) {
           }
           
           telefone = extrairTelefone(imoviewData);
+        }
+      }
+
+      // TENTATIVA 3 (Caso seja um Lead e não Atendimento): Lead/Retornar
+      if (!telefone) {
+        console.log('Tentando Lead/Retornar...');
+        const leadData = await consultarAPIImoview('/Lead/Retornar');
+        
+        if (leadData) {
+          console.log('DEBUG JSON IMOVIEW (Lead/Retornar):', JSON.stringify(leadData, null, 2));
+          telefone = extrairTelefone(leadData);
+          if (telefone) {
+            imoviewData = leadData;
+          }
         }
       }
 

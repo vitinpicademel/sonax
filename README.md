@@ -63,11 +63,15 @@ A função também mantém compatibilidade com webhooks que enviam o telefone di
 1. **Recebimento**: Extrai o `codigo` do atendimento do webhook
 2. **Verificação**: Tenta encontrar telefone direto no webhook (compatibilidade)
 3. **Consulta**: Se não encontrar telefone, consulta API Imoview:
-   - Endpoint: `https://api.imoview.com.br/atendimento/retornar`
+   - Endpoint primário: `https://api.imoview.com.br/Atendimento/Retornar`
+   - Endpoint fallback: `https://api.imoview.com.br/Interessado/Retornar`
    - Parâmetros: `chave` (IMOVIEW_KEY) e `codigo` (do webhook)
 4. **Extração**: Busca telefone em múltiplos campos:
    - `cliente.celular`, `cliente.telefone`, `cliente.fone`, `cliente.phone`
+   - `cliente.telefone1`, `cliente.telefone2`, `cliente.telefones[]`
    - `celular`, `telefone`, `fone`, `phone`
+   - `telefone1`, `telefone2`, `telefones[]`, `contato`
+   - `telefone_principal`, `telefone_secundario`
 5. **Limpeza**: Remove caracteres não numéricos do telefone
 6. **Disparo**: Envia para API Sonax
 
@@ -89,7 +93,7 @@ A função também mantém compatibilidade com webhooks que enviam o telefone di
 ```json
 {
   "success": false,
-  "message": "Telefone não encontrado nos dados do atendimento",
+  "message": "Telefone não encontrado nos dados do atendimento/interessado",
   "codigoAtendimento": 21290
 }
 ```
@@ -98,8 +102,9 @@ A função também mantém compatibilidade com webhooks que enviam o telefone di
 
 A aplicação loga no console:
 - Recebimento de webhooks e códigos de atendimento
-- Consultas à API Imoview
-- Dados recebidos da API Imoview (formatado)
+- Consultas aos endpoints Atendimento/Retornar e Interessado/Retornar
+- Dados recebidos da API Imoview (formatados)
+- Tentativas de fallback quando endpoint primário falha
 - Extração de telefones encontrados
 - Sucesso/erro na chamada da Sonax
 - Erros de configuração

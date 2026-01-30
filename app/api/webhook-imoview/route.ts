@@ -31,53 +31,85 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Construir URL da API Imoview
-      const imoviewUrl = new URL('https://api.imoview.com.br/atendimento/retornar');
-      imoviewUrl.searchParams.append('chave', imoviewKey);
-      imoviewUrl.searchParams.append('codigo', codigoAtendimento.toString());
+      // Função para extrair telefone de múltiplos campos possíveis
+      const extrairTelefone = (data: any): string | null => {
+        // Verificar em objeto cliente
+        if (data.cliente) {
+          const telCliente = data.cliente.celular || 
+                           data.cliente.telefone || 
+                           data.cliente.fone ||
+                           data.cliente.phone ||
+                           data.cliente.telefone1 ||
+                           data.cliente.telefone2 ||
+                           (Array.isArray(data.cliente.telefones) && data.cliente.telefones[0]) ||
+                           data.cliente.contato;
+          if (telCliente) return telCliente;
+        }
 
-      console.log(`Consultando API Imoview: ${imoviewUrl.toString()}`);
-      
-      const imoviewResponse = await fetch(imoviewUrl.toString(), {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+        // Verificar em campos diretos
+        return data.celular || 
+               data.telefone || 
+               data.fone ||
+               data.phone ||
+               data.telefone1 ||
+               data.telefone2 ||
+               (Array.isArray(data.telefones) && data.telefones[0]) ||
+               data.contato ||
+               data.telefone_principal ||
+               data.telefone_secundario;
+      };
 
-      if (!imoviewResponse.ok) {
-        const errorText = await imoviewResponse.text();
-        console.error('Erro na API Imoview:', imoviewResponse.status, errorText);
+      // Função para consultar API Imoview
+      const consultarAPIImoview = async (endpoint: string): Promise<any> => {
+        const url = new URL(`https://api.imoview.com.br${endpoint}`);
+        url.searchParams.append('chave', imoviewKey);
+        url.searchParams.append('codigo', codigoAtendimento.toString());
+
+        console.log(`Consultando API Imoview: ${url.toString()}`);
         
-        return NextResponse.json({
-          success: false,
-          message: 'Erro ao consultar dados do atendimento na Imoview',
-          imoviewError: errorText
-        }, { status: 200 });
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Erro na API Imoview (${endpoint}):`, response.status, errorText);
+          return null;
+        }
+
+        const data = await response.json();
+        console.log(`Dados recebidos da API Imoview (${endpoint}):`, JSON.stringify(data, null, 2));
+        return data;
+      };
+
+      // Tentar primeiro endpoint Atendimento/Retornar
+      let imoviewData = await consultarAPIImoview('/Atendimento/Retornar');
+      
+      if (imoviewData) {
+        telefone = extrairTelefone(imoviewData);
       }
 
-      const imoviewData = await imoviewResponse.json();
-      console.log('Dados recebidos da API Imoview:', JSON.stringify(imoviewData, null, 2));
-
-      // Extrair telefone dos dados do cliente (verifica múltiplos campos possíveis)
-      if (imoviewData.cliente) {
-        telefone = imoviewData.cliente.celular || 
-                  imoviewData.cliente.telefone || 
-                  imoviewData.cliente.fone ||
-                  imoviewData.cliente.phone;
-      } else {
-        // Tentar encontrar telefone em outros campos possíveis
-        telefone = imoviewData.celular || 
-                  imoviewData.telefone || 
-                  imoviewData.fone ||
-                  imoviewData.phone;
+      // Se não encontrou telefone ou dados vazios, tentar endpoint Interessado/Retornar
+      if (!telefone || !imoviewData) {
+        console.log('Tentando endpoint alternativo Interessado/Retornar...');
+        const interessadoData = await consultarAPIImoview('/Interessado/Retornar');
+        
+        if (interessadoData) {
+          telefone = extrairTelefone(interessadoData);
+          if (telefone) {
+            imoviewData = interessadoData;
+          }
+        }
       }
 
       if (!telefone) {
-        console.error('Telefone não encontrado nos dados do atendimento:', imoviewData);
+        console.error('Telefone não encontrado em nenhum endpoint da API Imoview');
         return NextResponse.json({
           success: false,
-          message: 'Telefone não encontrado nos dados do atendimento',
+          message: 'Telefone não encontrado nos dados do atendimento/interessado',
           codigoAtendimento
         }, { status: 200 });
       }

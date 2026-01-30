@@ -80,8 +80,8 @@ export async function POST(request: NextRequest) {
                data.telefone_secundario;
       };
 
-      // Função para consultar API Imoview
-      const consultarAPIImoview = async (endpoint: string): Promise<any> => {
+      // Função para consultar API Imoview com múltiplos endpoints
+      const consultarAPIImoview = async (endpoint: string, parametrosAdicionais: Record<string, string> = {}): Promise<any> => {
         // URLs hardcoded com case sensitivity correto
         const baseUrl = 'https://api.imoview.com.br';
         const fullUrl = `${baseUrl}${endpoint}`;
@@ -90,6 +90,11 @@ export async function POST(request: NextRequest) {
         const url = new URL(fullUrl);
         url.searchParams.append('chave', imoviewKey);
         url.searchParams.append('codigo', codigoAtendimento.toString());
+        
+        // Adicionar parâmetros adicionais
+        Object.entries(parametrosAdicionais).forEach(([key, value]) => {
+          url.searchParams.append(key, value);
+        });
 
         console.log(`Consultando API Imoview: ${url.toString()}`);
         
@@ -111,24 +116,59 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // Tentar primeiro endpoint Atendimento/Retornar (EXATO com maiúsculas)
-      let imoviewData = await consultarAPIImoview('/Atendimento/Retornar');
+      // TENTATIVA 1: Atendimento/Listar (mais provável)
+      let imoviewData = await consultarAPIImoview('/Atendimento/Listar', { registrosPorPagina: '1' });
       
       if (imoviewData) {
-        console.log('DEBUG API IMOVIEW (Atendimento):', JSON.stringify(imoviewData, null, 2));
+        console.log('DEBUG JSON IMOVIEW (Atendimento/Listar):', JSON.stringify(imoviewData, null, 2));
+        
+        // Se for uma lista/array, pegar o primeiro item
+        if (Array.isArray(imoviewData) && imoviewData.length > 0) {
+          imoviewData = imoviewData[0];
+          console.log('DEBUG JSON IMOVIEW (primeiro item da lista):', JSON.stringify(imoviewData, null, 2));
+        }
+        
         telefone = extrairTelefone(imoviewData);
       }
 
-      // Se não encontrou telefone ou dados vazios, tentar endpoint Interessado/Retornar (EXATO com maiúsculas)
-      if (!telefone || !imoviewData) {
-        console.log('Tentando endpoint alternativo Interessado/Retornar...');
-        const interessadoData = await consultarAPIImoview('/Interessado/Retornar');
+      // TENTATIVA 2: Atendimento/Obter
+      if (!telefone) {
+        console.log('Tentando Atendimento/Obter...');
+        const atendimentoData = await consultarAPIImoview('/Atendimento/Obter');
         
-        if (interessadoData) {
-          console.log('DEBUG API IMOVIEW (Interessado):', JSON.stringify(interessadoData, null, 2));
-          telefone = extrairTelefone(interessadoData);
+        if (atendimentoData) {
+          console.log('DEBUG JSON IMOVIEW (Atendimento/Obter):', JSON.stringify(atendimentoData, null, 2));
+          telefone = extrairTelefone(atendimentoData);
           if (telefone) {
-            imoviewData = interessadoData;
+            imoviewData = atendimentoData;
+          }
+        }
+      }
+
+      // TENTATIVA 3: Cliente/Retornar (busca por lead/pessoa)
+      if (!telefone) {
+        console.log('Tentando Cliente/Retornar...');
+        const clienteData = await consultarAPIImoview('/Cliente/Retornar');
+        
+        if (clienteData) {
+          console.log('DEBUG JSON IMOVIEW (Cliente/Retornar):', JSON.stringify(clienteData, null, 2));
+          telefone = extrairTelefone(clienteData);
+          if (telefone) {
+            imoviewData = clienteData;
+          }
+        }
+      }
+
+      // TENTATIVA 4: Pessoa/Retornar (alternativa)
+      if (!telefone) {
+        console.log('Tentando Pessoa/Retornar...');
+        const pessoaData = await consultarAPIImoview('/Pessoa/Retornar');
+        
+        if (pessoaData) {
+          console.log('DEBUG JSON IMOVIEW (Pessoa/Retornar):', JSON.stringify(pessoaData, null, 2));
+          telefone = extrairTelefone(pessoaData);
+          if (telefone) {
+            imoviewData = pessoaData;
           }
         }
       }

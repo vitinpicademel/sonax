@@ -116,36 +116,15 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 1: Atendimento/Listar (mais provável)
-      let imoviewData = await consultarAPIImoview('/Atendimento/Listar', { registrosPorPagina: '1' });
+      // TENTATIVA PRINCIPAL: Lead/Retornar (Interessado foi renomeado para Lead na V2)
+      let imoviewData = await consultarAPIImoview('/Lead/Retornar');
       
       if (imoviewData) {
-        console.log('DEBUG JSON IMOVIEW (Atendimento/Listar):', JSON.stringify(imoviewData, null, 2));
-        
-        // Se for uma lista/array, pegar o primeiro item
-        if (Array.isArray(imoviewData) && imoviewData.length > 0) {
-          imoviewData = imoviewData[0];
-          console.log('DEBUG JSON IMOVIEW (primeiro item da lista):', JSON.stringify(imoviewData, null, 2));
-        }
-        
+        console.log('DEBUG JSON IMOVIEW (Lead/Retornar):', JSON.stringify(imoviewData, null, 2));
         telefone = extrairTelefone(imoviewData);
       }
 
-      // TENTATIVA 2: Atendimento/Obter
-      if (!telefone) {
-        console.log('Tentando Atendimento/Obter...');
-        const atendimentoData = await consultarAPIImoview('/Atendimento/Obter');
-        
-        if (atendimentoData) {
-          console.log('DEBUG JSON IMOVIEW (Atendimento/Obter):', JSON.stringify(atendimentoData, null, 2));
-          telefone = extrairTelefone(atendimentoData);
-          if (telefone) {
-            imoviewData = atendimentoData;
-          }
-        }
-      }
-
-      // TENTATIVA 3: Cliente/Retornar (busca por lead/pessoa)
+      // TENTATIVA SECUNDÁRIA: Cliente/Retornar
       if (!telefone) {
         console.log('Tentando Cliente/Retornar...');
         const clienteData = await consultarAPIImoview('/Cliente/Retornar');
@@ -159,17 +138,23 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // TENTATIVA 4: Pessoa/Retornar (alternativa)
+      // TENTATIVA TERCIÁRIA: Atendimento/Listar (último caso)
       if (!telefone) {
-        console.log('Tentando Pessoa/Retornar...');
-        const pessoaData = await consultarAPIImoview('/Pessoa/Retornar');
+        console.log('Tentando Atendimento/Listar...');
+        const atendimentoData = await consultarAPIImoview('/Atendimento/Listar', { registrosPorPagina: '1' });
         
-        if (pessoaData) {
-          console.log('DEBUG JSON IMOVIEW (Pessoa/Retornar):', JSON.stringify(pessoaData, null, 2));
-          telefone = extrairTelefone(pessoaData);
-          if (telefone) {
-            imoviewData = pessoaData;
+        if (atendimentoData) {
+          console.log('DEBUG JSON IMOVIEW (Atendimento/Listar):', JSON.stringify(atendimentoData, null, 2));
+          
+          // Se for uma lista/array, pegar o primeiro item
+          if (Array.isArray(atendimentoData) && atendimentoData.length > 0) {
+            imoviewData = atendimentoData[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da lista):', JSON.stringify(imoviewData, null, 2));
+          } else {
+            imoviewData = atendimentoData;
           }
+          
+          telefone = extrairTelefone(imoviewData);
         }
       }
 

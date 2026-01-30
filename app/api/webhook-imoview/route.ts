@@ -80,8 +80,8 @@ export async function POST(request: NextRequest) {
                data.telefone_secundario;
       };
 
-      // Função para consultar API Imoview com logs detalhados
-      const consultarAPIImoview = async (endpoint: string, parametrosAdicionais: Record<string, string> = {}): Promise<any> => {
+      // Função para consultar API Imoview com suporte a POST/GET
+      const consultarAPIImoview = async (endpoint: string, method: string = 'GET', parametrosAdicionais: Record<string, string> = {}): Promise<any> => {
         // URLs hardcoded com case sensitivity correto
         const baseUrl = 'https://api.imoview.com.br';
         const fullUrl = `${baseUrl}${endpoint}`;
@@ -96,10 +96,10 @@ export async function POST(request: NextRequest) {
           url.searchParams.append(key, value);
         });
 
-        console.log(`Tentando endpoint: ${url.toString()}`);
+        console.log(`Tentando endpoint: ${method} ${url.toString()}`);
         
         const response = await fetch(url.toString(), {
-          method: 'GET',
+          method: method,
           headers: {
             'Content-Type': 'application/json',
           },
@@ -120,50 +120,64 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 1 (Padrão Ouro): Lead/Listar
-      let imoviewData = await consultarAPIImoview('/Lead/Listar', { registrosPorPagina: '1' });
+      // TENTATIVA 1 (Alta Probabilidade): Lead/Retornar via POST
+      let imoviewData = await consultarAPIImoview('/Lead/Retornar', 'POST');
       
       if (imoviewData) {
-        // Se for uma lista/array, pegar o primeiro item
-        if (Array.isArray(imoviewData) && imoviewData.length > 0) {
-          imoviewData = imoviewData[0];
-          console.log('DEBUG JSON IMOVIEW (primeiro item da lista Lead):', JSON.stringify(imoviewData, null, 2));
-        }
-        
         telefone = extrairTelefone(imoviewData);
       }
 
-      // TENTATIVA 2: Lead/Obter
+      // TENTATIVA 2: Lead/Pesquisar via GET com palavraChave
       if (!telefone) {
-        console.log('Tentando Lead/Obter...');
-        const leadData = await consultarAPIImoview('/Lead/Obter');
+        console.log('Tentando Lead/Pesquisar com palavraChave...');
+        const leadData1 = await consultarAPIImoview('/Lead/Pesquisar', 'GET', { palavraChave: codigoAtendimento.toString() });
         
-        if (leadData) {
-          console.log('DEBUG JSON IMOVIEW (Lead/Obter):', JSON.stringify(leadData, null, 2));
-          telefone = extrairTelefone(leadData);
-          if (telefone) {
-            imoviewData = leadData;
-          }
-        }
-      }
-
-      // TENTATIVA 3 (Fallback para Atendimento): Atendimento/Listar
-      if (!telefone) {
-        console.log('Tentando Atendimento/Listar...');
-        const atendimentoData = await consultarAPIImoview('/Atendimento/Listar', { registrosPorPagina: '1' });
-        
-        if (atendimentoData) {
-          console.log('DEBUG JSON IMOVIEW (Atendimento/Listar):', JSON.stringify(atendimentoData, null, 2));
+        if (leadData1) {
+          console.log('DEBUG JSON IMOVIEW (Lead/Pesquisar com palavraChave):', JSON.stringify(leadData1, null, 2));
           
           // Se for uma lista/array, pegar o primeiro item
-          if (Array.isArray(atendimentoData) && atendimentoData.length > 0) {
-            imoviewData = atendimentoData[0];
-            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Atendimento):', JSON.stringify(imoviewData, null, 2));
+          if (Array.isArray(leadData1) && leadData1.length > 0) {
+            imoviewData = leadData1[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Lead/Pesquisar):', JSON.stringify(imoviewData, null, 2));
           } else {
-            imoviewData = atendimentoData;
+            imoviewData = leadData1;
           }
           
           telefone = extrairTelefone(imoviewData);
+        }
+      }
+
+      // TENTATIVA 2b: Lead/Pesquisar via GET com q
+      if (!telefone) {
+        console.log('Tentando Lead/Pesquisar com q...');
+        const leadData2 = await consultarAPIImoview('/Lead/Pesquisar', 'GET', { q: codigoAtendimento.toString() });
+        
+        if (leadData2) {
+          console.log('DEBUG JSON IMOVIEW (Lead/Pesquisar com q):', JSON.stringify(leadData2, null, 2));
+          
+          // Se for uma lista/array, pegar o primeiro item
+          if (Array.isArray(leadData2) && leadData2.length > 0) {
+            imoviewData = leadData2[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Lead/Pesquisar):', JSON.stringify(imoviewData, null, 2));
+          } else {
+            imoviewData = leadData2;
+          }
+          
+          telefone = extrairTelefone(imoviewData);
+        }
+      }
+
+      // TENTATIVA 3: Atendimento/Retornar via POST
+      if (!telefone) {
+        console.log('Tentando Atendimento/Retornar via POST...');
+        const atendimentoData = await consultarAPIImoview('/Atendimento/Retornar', 'POST');
+        
+        if (atendimentoData) {
+          console.log('DEBUG JSON IMOVIEW (Atendimento/Retornar):', JSON.stringify(atendimentoData, null, 2));
+          telefone = extrairTelefone(atendimentoData);
+          if (telefone) {
+            imoviewData = atendimentoData;
+          }
         }
       }
 

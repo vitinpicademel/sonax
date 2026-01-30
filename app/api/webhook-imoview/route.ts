@@ -120,29 +120,43 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 1 (Lead App_RetornarAtendimentos - Documentação Oficial)
-      let imoviewData = await consultarAPIImoview('/Lead/App_RetornarAtendimentos', 'GET', { 
-        numeroPagina: '1',
-        numeroRegistros: '100',
-        codigoUsuario: '1', // Usuário genérico
-        codigoCliente: codigoAtendimento.toString()
+      // TENTATIVA 0 (Teste Simples - Usuario/RetornarTipo1)
+      let imoviewData = await consultarAPIImoview('/Usuario/RetornarTipo1', 'GET', { 
+        cpfOuCnpj: '12345678901' // CPF genérico para teste
       });
       
       if (imoviewData) {
-        console.log('DEBUG JSON IMOVIEW (Lead/App_RetornarAtendimentos):', JSON.stringify(imoviewData, null, 2));
+        console.log('DEBUG JSON IMOVIEW (Usuario/RetornarTipo1 - Teste):', JSON.stringify(imoviewData, null, 2));
+        console.log('CHAVE API ESTÁ FUNCIONANDO! ✅');
+      } else {
+        console.log('ERRO: CHAVE API INVÁLIDA MESMO PARA ENDPOINT SIMPLES ❌');
+      }
+
+      // TENTATIVA 1 (Lead App_RetornarAtendimentos - Documentação Oficial)
+      if (!telefone) {
+        imoviewData = await consultarAPIImoview('/Lead/App_RetornarAtendimentos', 'GET', { 
+          numeroPagina: '1',
+          numeroRegistros: '100',
+          codigoUsuario: '1', // Usuário genérico
+          codigoCliente: codigoAtendimento.toString()
+        });
         
-        // Se for uma lista/array, pegar o primeiro item
-        if (Array.isArray(imoviewData.lista) && imoviewData.lista.length > 0) {
-          imoviewData = imoviewData.lista[0];
-          console.log('DEBUG JSON IMOVIEW (primeiro item da lista Lead/App_RetornarAtendimentos):', JSON.stringify(imoviewData, null, 2));
+        if (imoviewData) {
+          console.log('DEBUG JSON IMOVIEW (Lead/App_RetornarAtendimentos):', JSON.stringify(imoviewData, null, 2));
+          
+          // Se for uma lista/array, pegar o primeiro item
+          if (Array.isArray(imoviewData.lista) && imoviewData.lista.length > 0) {
+            imoviewData = imoviewData.lista[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Lead/App_RetornarAtendimentos):', JSON.stringify(imoviewData, null, 2));
+          }
+          
+          telefone = extrairTelefone(imoviewData);
         }
-        
-        telefone = extrairTelefone(imoviewData);
       }
 
       // TENTATIVA 2 (Usuario/RetornarTipo1 - Por CPF/CNPJ se tiver)
       if (!telefone) {
-        console.log('Tentando Usuario/RetornarTipo1...');
+        console.log('Tentando Usuario/RetornarTipo1 com código do atendimento...');
         const usuarioData = await consultarAPIImoview('/Usuario/RetornarTipo1', 'GET', { 
           cpfOuCnpj: codigoAtendimento.toString()
         });

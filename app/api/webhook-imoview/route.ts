@@ -120,58 +120,70 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 1 (API V2 - Padrão Moderno): v2/Lead/Retornar
-      let imoviewData = await consultarAPIImoview('/v2/Lead/Retornar', 'GET');
+      // TENTATIVA 1 (Pessoa/Retornar - Mais provável de ter os dados)
+      let imoviewData = await consultarAPIImoview('/Pessoa/Retornar', 'GET');
       
       if (imoviewData) {
         telefone = extrairTelefone(imoviewData);
       }
 
-      // TENTATIVA 2 (API V2 - Endpoint de Listagem): v2/Lead/Listar
+      // TENTATIVA 2 (Pessoa/Listar - Busca genérica)
       if (!telefone) {
-        console.log('Tentando v2/Lead/Listar...');
-        const leadListData = await consultarAPIImoview('/v2/Lead/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
+        console.log('Tentando Pessoa/Listar com palavraChave...');
+        const pessoaListData = await consultarAPIImoview('/Pessoa/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
         
-        if (leadListData) {
-          console.log('DEBUG JSON IMOVIEW (v2/Lead/Listar):', JSON.stringify(leadListData, null, 2));
+        if (pessoaListData) {
+          console.log('DEBUG JSON IMOVIEW (Pessoa/Listar):', JSON.stringify(pessoaListData, null, 2));
           
           // Se for uma lista/array, pegar o primeiro item
-          if (Array.isArray(leadListData) && leadListData.length > 0) {
-            imoviewData = leadListData[0];
-            console.log('DEBUG JSON IMOVIEW (primeiro item da lista v2/Lead/Listar):', JSON.stringify(imoviewData, null, 2));
+          if (Array.isArray(pessoaListData) && pessoaListData.length > 0) {
+            imoviewData = pessoaListData[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Pessoa/Listar):', JSON.stringify(imoviewData, null, 2));
           } else {
-            imoviewData = leadListData;
+            imoviewData = pessoaListData;
           }
           
           telefone = extrairTelefone(imoviewData);
         }
       }
 
-      // TENTATIVA 3 (Fallback para Atendimento V2): v2/Atendimento/Retornar
+      // TENTATIVA 2b (Pessoa/Listar com q)
       if (!telefone) {
-        console.log('Tentando v2/Atendimento/Retornar...');
-        const atendimentoData = await consultarAPIImoview('/v2/Atendimento/Retornar', 'GET');
+        console.log('Tentando Pessoa/Listar com q...');
+        const pessoaListData2 = await consultarAPIImoview('/Pessoa/Listar', 'GET', { q: codigoAtendimento.toString() });
         
-        if (atendimentoData) {
-          console.log('DEBUG JSON IMOVIEW (v2/Atendimento/Retornar):', JSON.stringify(atendimentoData, null, 2));
-          telefone = extrairTelefone(atendimentoData);
-          if (telefone) {
-            imoviewData = atendimentoData;
+        if (pessoaListData2) {
+          console.log('DEBUG JSON IMOVIEW (Pessoa/Listar com q):', JSON.stringify(pessoaListData2, null, 2));
+          
+          // Se for uma lista/array, pegar o primeiro item
+          if (Array.isArray(pessoaListData2) && pessoaListData2.length > 0) {
+            imoviewData = pessoaListData2[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Pessoa/Listar com q):', JSON.stringify(imoviewData, null, 2));
+          } else {
+            imoviewData = pessoaListData2;
           }
+          
+          telefone = extrairTelefone(imoviewData);
         }
       }
 
-      // TENTATIVA 4 (API Antiga com POST - Último recurso): Atendimento/Retornar
+      // TENTATIVA 3 (Atendimento/Listar - Tentando via Query String)
       if (!telefone) {
-        console.log('Tentando Atendimento/Retornar via POST (último recurso)...');
-        const oldApiData = await consultarAPIImoview('/Atendimento/Retornar', 'POST');
+        console.log('Tentando Atendimento/Listar com palavraChave...');
+        const atendimentoListData = await consultarAPIImoview('/Atendimento/Listar', 'GET', { palavraChave: codigoAtendimento.toString() });
         
-        if (oldApiData) {
-          console.log('DEBUG JSON IMOVIEW (Atendimento/Retornar POST):', JSON.stringify(oldApiData, null, 2));
-          telefone = extrairTelefone(oldApiData);
-          if (telefone) {
-            imoviewData = oldApiData;
+        if (atendimentoListData) {
+          console.log('DEBUG JSON IMOVIEW (Atendimento/Listar):', JSON.stringify(atendimentoListData, null, 2));
+          
+          // Se for uma lista/array, pegar o primeiro item
+          if (Array.isArray(atendimentoListData) && atendimentoListData.length > 0) {
+            imoviewData = atendimentoListData[0];
+            console.log('DEBUG JSON IMOVIEW (primeiro item da lista Atendimento/Listar):', JSON.stringify(imoviewData, null, 2));
+          } else {
+            imoviewData = atendimentoListData;
           }
+          
+          telefone = extrairTelefone(imoviewData);
         }
       }
 

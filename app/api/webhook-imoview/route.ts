@@ -120,70 +120,126 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TENTATIVA 1 (Usuario/RetornarTipo1 - Não precisa de codigoacesso)
-      let imoviewData = await consultarAPIImoview('/Usuario/RetornarTipo1', 'GET', { 
-        cpfOuCnpj: codigoAtendimento.toString()
-      });
-      
-      if (imoviewData) {
-        console.log('DEBUG JSON IMOVIEW (Usuario/RetornarTipo1):', JSON.stringify(imoviewData, null, 2));
-        telefone = imoviewData.telefones || imoviewData.telefone || imoviewData.celular;
-        if (telefone) {
-          imoviewData = imoviewData;
-        }
-      }
+      // TESTE DE MÚLTIPLAS CHAVES API
+      const chavesParaTestar = [
+        'cdb155d3651bfcfbdb554e2618db3a3d', // Chave atual
+        // 'CHAVE_2_AQUI', // Adicionar aqui
+        // 'CHAVE_3_AQUI', // Adicionar aqui
+        // 'CHAVE_4_AQUI', // Adicionar aqui
+      ];
 
-      // TENTATIVA 2 (Tentar como CPF se o código for numérico longo)
-      if (!telefone && codigoAtendimento.toString().length >= 11) {
-        console.log('Tentando Usuario/RetornarTipo1 como CPF...');
-        const usuarioData = await consultarAPIImoview('/Usuario/RetornarTipo1', 'GET', { 
-          cpfOuCnpj: codigoAtendimento.toString()
+      let chaveFuncionando = null;
+      let dadosEncontrados = null;
+
+      // Função auxiliar para usar chave específica
+      const consultarAPIImoviewComChave = async (endpoint: string, method: string = 'GET', parametrosAdicionais: Record<string, string> = {}, chave: string): Promise<any> => {
+        const baseUrl = 'https://api.imoview.com.br';
+        const fullUrl = `${baseUrl}${endpoint}`;
+        
+        const url = new URL(fullUrl);
+        url.searchParams.append('chave', chave);
+        
+        Object.entries(parametrosAdicionais).forEach(([key, value]) => {
+          url.searchParams.append(key, value);
         });
-        
-        if (usuarioData) {
-          console.log('DEBUG JSON IMOVIEW (Usuario/RetornarTipo1 CPF):', JSON.stringify(usuarioData, null, 2));
-          telefone = usuarioData.telefones || usuarioData.telefone || usuarioData.celular;
-          if (telefone) {
-            imoviewData = usuarioData;
-          }
-        }
-      }
 
-      // TENTATIVA 3 (Procurar endpoints sem App_ no Swagger)
-      if (!telefone) {
-        console.log('Tentando buscar endpoints alternativos sem App_...');
+        console.log(`   Tentando: ${method} ${url.toString()}`);
         
-        // Vamos tentar alguns endpoints básicos que podem existir
-        const endpointsBasicos = [
-          '/Cliente/Retornar',
-          '/Atendimento/Retornar', 
-          '/Lead/Retornar',
-          '/Pessoa/Retornar'
-        ];
+        const response = await fetch(url.toString(), {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const status = response.status;
         
-        for (const endpoint of endpointsBasicos) {
-          console.log(`Tentando endpoint básico: ${endpoint}`);
-          const testData = await consultarAPIImoview(endpoint, 'GET');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log(`   Erro ${status}: ${errorText}`);
+          return null;
+        }
+
+        const data = await response.json();
+        console.log(`   Sucesso ${status}:`, JSON.stringify(data, null, 2));
+        return data;
+      };
+
+      // Testar cada chave até encontrar uma que funcione
+      for (const chaveTeste of chavesParaTestar) {
+        console.log(`\n🧪 TESTANDO CHAVE: ${chaveTeste.substring(0, 8)}...`);
+        
+        // Função para testar endpoint com chave específica
+        const testarChave = async (chave: string) => {
+          const url = `https://api.imoview.com.br/Usuario/RetornarTipo1?chave=${chave}&cpfOuCnpj=12345678901`;
           
-          if (testData) {
-            console.log(`DEBUG JSON IMOVIEW (${endpoint}):`, JSON.stringify(testData, null, 2));
-            telefone = extrairTelefone(testData);
-            if (telefone) {
-              imoviewData = testData;
-              break;
-            }
+          try {
+            const response = await fetch(url, {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' }
+            });
+
+            const status = response.status;
+            const data = await response.json();
+            
+            console.log(`   Status: ${status}`);
+            console.log(`   Resposta:`, JSON.stringify(data, null, 2));
+            
+            return { status, data, sucesso: status === 200 };
+          } catch (error) {
+            console.log(`   Erro:`, error);
+            return { status: 0, data: null, sucesso: false };
           }
+        };
+
+        const resultado = await testarChave(chaveTeste);
+        
+        if (resultado.sucesso) {
+          console.log(`✅ CHAVE VÁLIDA ENCONTRADA: ${chaveTeste.substring(0, 8)}...`);
+          chaveFuncionando = chaveTeste;
+          
+          // Se encontrou chave válida, tentar buscar dados reais
+          console.log(`🔍 Buscando dados do atendimento ${codigoAtendimento} com chave válida...`);
+          
+          const dadosReais = await consultarAPIImoviewComChave(
+            '/Usuario/RetornarTipo1', 
+            'GET', 
+            { cpfOuCnpj: codigoAtendimento.toString() },
+            chaveTeste
+          );
+          
+          if (dadosReais) {
+            dadosEncontrados = dadosReais;
+            telefone = dadosReais.telefones || dadosReais.telefone || dadosReais.celular;
+            console.log(`📞 Telefone encontrado: ${telefone}`);
+          }
+          
+          break; // Parar no primeiro sucesso
+        } else {
+          console.log(`❌ Chave inválida: ${chaveTeste.substring(0, 8)}...`);
         }
       }
 
-      if (!telefone) {
-        console.error('Telefone não encontrado em nenhum endpoint da API Imoview');
+      // Se não encontrou chave válida ou telefone
+      if (!chaveFuncionando) {
+        console.error('\n🚨 NENHUMA CHAVE VÁLIDA ENCONTRADA!');
+        console.error('Por favor, contate o suporte Imoview para obter uma chave válida.');
         return NextResponse.json({
           success: false,
-          message: 'Telefone não encontrado nos dados do atendimento/interessado',
+          message: 'Nenhuma chave API válida encontrada. Contate o suporte Imoview.',
           codigoAtendimento
         }, { status: 200 });
       }
+
+      if (!telefone) {
+        console.error('\n📞 Telefone não encontrado mesmo com chave válida.');
+        return NextResponse.json({
+          success: false,
+          message: 'Telefone não encontrado nos dados do atendimento/interessado (chave válida encontrada)',
+          codigoAtendimento,
+          chaveFuncionando: chaveFuncionando.substring(0, 8) + '...'
+        }, { status: 200 });
+      }
+
+      console.log(`\n✅ SUCESSO! Chave: ${chaveFuncionando.substring(0, 8)}..., Telefone: ${telefone}`);
 
       console.log(`Telefone encontrado na API Imoview: ${telefone}`);
     } else {

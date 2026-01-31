@@ -122,10 +122,9 @@ export async function POST(request: NextRequest) {
 
       // TESTE DE MÚLTIPLAS CHAVES API
       const chavesParaTestar = [
-        'cdb155d3651bfcfbdb554e2618db3a3d', // Chave atual
-        // 'CHAVE_2_AQUI', // Adicionar aqui
-        // 'CHAVE_3_AQUI', // Adicionar aqui
-        // 'CHAVE_4_AQUI', // Adicionar aqui
+        '8d5720c964c395ff128876787322e2c3', // Chave 1
+        'cdb155d3651bfcfbdb554e2618db3a3d', // Chave 2
+        'c5061d79ac19ceaacc7c7d985cba2db4', // Chave 3
       ];
 
       let chaveFuncionando = null;

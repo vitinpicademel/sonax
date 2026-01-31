@@ -168,7 +168,8 @@ export async function POST(request: NextRequest) {
         
         // Função para testar endpoint com chave específica
         const testarChave = async (chave: string) => {
-          const url = `https://api.imoview.com.br/Usuario/RetornarTipo1?chave=${chave}&cpfOuCnpj=12345678901`;
+          // Tentar endpoint mais básico possível
+          const url = `https://api.imoview.com.br/Usuario/RetornarTipo1?chave=${chave}&cpfOuCnpj=`;
           
           try {
             const response = await fetch(url, {
@@ -182,7 +183,8 @@ export async function POST(request: NextRequest) {
             console.log(`   Status: ${status}`);
             console.log(`   Resposta:`, JSON.stringify(data, null, 2));
             
-            return { status, data, sucesso: status === 200 };
+            // Se der 400 (bad request) em vez de 401, a chave funciona!
+            return { status, data, sucesso: status !== 401 };
           } catch (error) {
             console.log(`   Erro:`, error);
             return { status: 0, data: null, sucesso: false };

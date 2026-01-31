@@ -120,7 +120,10 @@ export async function POST(request: NextRequest) {
         return data;
       };
 
-      // TESTE DE MÚLTIPLAS CHAVES API
+      // ESTRATÉGIA CORRETA: Buscar por código do atendimento
+      console.log(`\n🔍 Buscando atendimento ${codigoAtendimento} na API Imoview...`);
+      
+      // Chaves para teste
       const chavesParaTestar = [
         '8d5720c964c395ff128876787322e2c3', // Chave 1
         'cdb155d3651bfcfbdb554e2618db3a3d', // Chave 2
@@ -129,88 +132,67 @@ export async function POST(request: NextRequest) {
 
       let chaveFuncionando = null;
       let dadosEncontrados = null;
+      
+      // Função para buscar atendimento por código
+      const buscarAtendimentoPorCodigo = async (chave: string) => {
+        // Tentar buscar pelo código do atendimento diretamente
+        const url = `https://api.imoview.com.br/Lead/App_RetornarAtendimentos?chave=${chave}&numeroPagina=1&numeroRegistros=100&codigoUsuario=1&textoPesquisa=${codigoAtendimento}`;
+        
+        try {
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
 
-      // Função auxiliar para usar chave específica
-      const consultarAPIImoviewComChave = async (endpoint: string, method: string = 'GET', parametrosAdicionais: Record<string, string> = {}, chave: string): Promise<any> => {
-        const baseUrl = 'https://api.imoview.com.br';
-        const fullUrl = `${baseUrl}${endpoint}`;
-        
-        const url = new URL(fullUrl);
-        url.searchParams.append('chave', chave);
-        
-        Object.entries(parametrosAdicionais).forEach(([key, value]) => {
-          url.searchParams.append(key, value);
-        });
-
-        console.log(`   Tentando: ${method} ${url.toString()}`);
-        
-        const response = await fetch(url.toString(), {
-          method: method,
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        const status = response.status;
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.log(`   Erro ${status}: ${errorText}`);
-          return null;
+          const status = response.status;
+          const data = await response.json();
+          
+          console.log(`   Status: ${status}`);
+          console.log(`   Resposta:`, JSON.stringify(data, null, 2));
+          
+          return { status, data, sucesso: status === 200 };
+        } catch (error) {
+          console.log(`   Erro:`, error);
+          return { status: 0, data: null, sucesso: false };
         }
-
-        const data = await response.json();
-        console.log(`   Sucesso ${status}:`, JSON.stringify(data, null, 2));
-        return data;
       };
 
       // Testar cada chave até encontrar uma que funcione
       for (const chaveTeste of chavesParaTestar) {
         console.log(`\n🧪 TESTANDO CHAVE: ${chaveTeste.substring(0, 8)}...`);
         
-        // Função para testar endpoint com chave específica
-        const testarChave = async (chave: string) => {
-          // Tentar endpoint mais básico possível
-          const url = `https://api.imoview.com.br/Usuario/RetornarTipo1?chave=${chave}&cpfOuCnpj=`;
-          
-          try {
-            const response = await fetch(url, {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' }
-            });
-
-            const status = response.status;
-            const data = await response.json();
-            
-            console.log(`   Status: ${status}`);
-            console.log(`   Resposta:`, JSON.stringify(data, null, 2));
-            
-            // Se der 400 (bad request) em vez de 401, a chave funciona!
-            return { status, data, sucesso: status !== 401 };
-          } catch (error) {
-            console.log(`   Erro:`, error);
-            return { status: 0, data: null, sucesso: false };
-          }
-        };
-
-        const resultado = await testarChave(chaveTeste);
+        const resultado = await buscarAtendimentoPorCodigo(chaveTeste);
         
         if (resultado.sucesso) {
           console.log(`✅ CHAVE VÁLIDA ENCONTRADA: ${chaveTeste.substring(0, 8)}...`);
           chaveFuncionando = chaveTeste;
           
-          // Se encontrou chave válida, tentar buscar dados reais
-          console.log(`🔍 Buscando dados do atendimento ${codigoAtendimento} com chave válida...`);
-          
-          const dadosReais = await consultarAPIImoviewComChave(
-            '/Usuario/RetornarTipo1', 
-            'GET', 
-            { cpfOuCnpj: codigoAtendimento.toString() },
-            chaveTeste
-          );
-          
-          if (dadosReais) {
-            dadosEncontrados = dadosReais;
-            telefone = dadosReais.telefones || dadosReais.telefone || dadosReais.celular;
-            console.log(`📞 Telefone encontrado: ${telefone}`);
+          // Procurar atendimento na lista
+          if (resultado.data.lista && Array.isArray(resultado.data.lista)) {
+            const atendimentoEncontrado = resultado.data.lista.find((item: any) => 
+              item.codigo == codigoAtendimento || 
+              item.codigo.toString() === codigoAtendimento.toString()
+            );
+            
+            if (atendimentoEncontrado) {
+              console.log(`🎯 ATENDIMENTO ENCONTRADO:`, JSON.stringify(atendimentoEncontrado, null, 2));
+              
+              // Extrair informações
+              const nome = atendimentoEncontrado.nomepessoa || '';
+              telefone = atendimentoEncontrado.telefone || atendimentoEncontrado.celular || '';
+              const campanha = atendimentoEncontrado.resumoimovel || '';
+              const imovel = atendimentoEncontrado.codigoimovel || '';
+              
+              console.log(`📋 DADOS EXTRAÍDOS:`);
+              console.log(`   Nome: ${nome}`);
+              console.log(`   Telefone: ${telefone}`);
+              console.log(`   Campanha: ${campanha}`);
+              console.log(`   Imóvel: ${imovel}`);
+              
+              dadosEncontrados = atendimentoEncontrado;
+            } else {
+              console.log(`❌ Atendimento ${codigoAtendimento} não encontrado na lista`);
+            }
           }
           
           break; // Parar no primeiro sucesso

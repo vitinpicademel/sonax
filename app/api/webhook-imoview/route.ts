@@ -44,6 +44,7 @@ function extrairTelefoneGenerico(data: any): string | null {
 
   // Campos diretos comuns nos retornos da Imoview
   return (
+    data.telefonelead || // Campo específico de atendimentos de leads
     data.celular ||
     data.telefone ||
     data.fone ||
@@ -231,6 +232,7 @@ export async function POST(request: NextRequest) {
           extrairTelefoneGenerico(atendimento.cliente);
 
         const nome =
+          atendimento.nomelead || // Campo específico de atendimentos de leads
           atendimento.nomepessoa ||
           atendimento.nomePessoa ||
           atendimento.nome ||

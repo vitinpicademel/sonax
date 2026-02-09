@@ -112,7 +112,8 @@ async function buscarAtendimentoPorCodigo(
 ) {
   const { codigoAcesso, codigoUsuario } = await obterCodigoAcesso(imoviewKey);
 
-  const url = new URL(`${IMOVIEW_BASE_URL}/Lead/App_RetornarAtendimentos`);
+  // Usar endpoint oficial de atendimentos (não mais o de Lead, que está retornando 404)
+  const url = new URL(`${IMOVIEW_BASE_URL}/Atendimento/App_RetornarAtendimentos`);
   url.searchParams.set('numeroPagina', '1');
   url.searchParams.set('numeroRegistros', '100');
   url.searchParams.set('codigoUsuario', String(codigoUsuario));

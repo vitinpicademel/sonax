@@ -59,6 +59,46 @@ function extrairTelefoneGenerico(data: any): string | null {
   );
 }
 
+// Seleciona a fila Sonax com base em regras de valor do imóvel (aproximação)
+// MCMV: até ~300k, Econômico: até ~700k, acima disso: Alto Padrão
+function selecionarFilaSonaxPorPerfil(atendimento: any): string | null {
+  const filaDefault = process.env.SONAX_QUEUE_ID || null;
+  const filaAltoPadrao = process.env.SONAX_QUEUE_ALTO_PADRAO || null;
+  const filaMcmv = process.env.SONAX_QUEUE_MCMV || null;
+  const filaEconomico = process.env.SONAX_QUEUE_ECONOMICO || null;
+
+  const textoPerfil: string = String(
+    atendimento?.resumoPerfil || atendimento?.resumo || ''
+  );
+
+  const matches = Array.from(textoPerfil.matchAll(/R\$\s*([\d\.\,]+)/g));
+  if (!matches.length) {
+    return filaDefault;
+  }
+
+  const valores = matches
+    .map((m) => {
+      const num = m[1].replace(/\./g, '').replace(',', '.');
+      const parsed = parseFloat(num);
+      return Number.isNaN(parsed) ? null : parsed;
+    })
+    .filter((v): v is number => v !== null);
+
+  if (!valores.length) return filaDefault;
+
+  const valorMedio =
+    valores.length === 1
+      ? valores[0]
+      : (valores[0] + valores[valores.length - 1]) / 2;
+
+  // Limiares aproximados – ajuste conforme sua estratégia de negócio
+  if (valorMedio <= 300000 && filaMcmv) return filaMcmv;
+  if (valorMedio <= 700000 && filaEconomico) return filaEconomico;
+  if (filaAltoPadrao) return filaAltoPadrao;
+
+  return filaDefault;
+}
+
 // Autentica na Imoview para obter codigoacesso (obrigatório para endpoints App_)
 async function obterCodigoAcesso(imoviewKey: string) {
   const email = process.env.IMOVIEW_EMAIL;
@@ -164,6 +204,9 @@ export async function POST(request: NextRequest) {
     // Extrair código do atendimento
     const codigoAtendimento = body.codigo;
 
+    // Fila Sonax calculada a partir do perfil do atendimento (pode sobrescrever a padrão)
+    let filaSonaxOverride: string | null = null;
+
     if (!codigoAtendimento) {
       console.error('Código do atendimento não encontrado no webhook:', body);
       return NextResponse.json(
@@ -242,6 +285,10 @@ export async function POST(request: NextRequest) {
         console.log('📋 Dados extraídos da Imoview:');
         console.log(`   Nome: ${nome}`);
         console.log(`   Telefone bruto: ${telefone}`);
+
+        // Selecionar fila Sonax com base no perfil do atendimento (valor do imóvel/faixa)
+        filaSonaxOverride = selecionarFilaSonaxPorPerfil(atendimento);
+        console.log(`   Fila Sonax sugerida: ${filaSonaxOverride ?? 'padrão'}`);
       } catch (err) {
         console.error('Erro ao consultar API Imoview:', err);
         return NextResponse.json(
@@ -284,8 +331,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar variáveis de ambiente da Sonax
-    const sonaxQueueId = process.env.SONAX_QUEUE_ID;
+    let sonaxQueueId = process.env.SONAX_QUEUE_ID || '';
     const sonaxToken = process.env.SONAX_TOKEN;
+
+    // Se calculamos uma fila específica pelo perfil, ela sobrescreve a padrão
+    if (filaSonaxOverride) {
+      sonaxQueueId = filaSonaxOverride;
+    }
 
     if (!sonaxQueueId || !sonaxToken) {
       console.error('Variáveis de ambiente da Sonax não configuradas');

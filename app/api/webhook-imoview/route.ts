@@ -270,6 +270,16 @@ export async function POST(request: NextRequest) {
           )}`
         );
 
+        // TODO: Remover este log após identificar o campo de mídia
+        console.log('🔍 Investigando campos de mídia:', {
+          midia: atendimento.midia,
+          origem: atendimento.origem,
+          midiaOrigem: atendimento.midiaOrigem,
+          nomeMidia: atendimento.nomeMidia,
+          fonte: atendimento.fonte,
+          campanha: atendimento.campanha
+        });
+
         telefone =
           extrairTelefoneGenerico(atendimento) ||
           extrairTelefoneGenerico(atendimento.cliente);

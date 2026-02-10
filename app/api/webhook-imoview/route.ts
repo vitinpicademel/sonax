@@ -153,8 +153,8 @@ async function buscarAtendimentoPorCodigo(
   codigoAtendimento: string | number,
   imoviewKey: string
 ) {
-  const MAX_RETRIES = 3;
-  const DELAY_MS = 2000; // 2 segundos
+  const MAX_RETRIES = 10;
+  const DELAY_MS = 3000; // 3 segundos
 
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
@@ -218,6 +218,7 @@ async function buscarAtendimentoPorCodigo(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('📦 Webhook recebido:', JSON.stringify(body));
 
     // Extrair código do atendimento
     const codigoAtendimento = body.codigo;

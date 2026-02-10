@@ -382,7 +382,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sonaxResult = await sonaxResponse.json().catch(() => null);
+    const sonaxResultText = await sonaxResponse.text();
+    console.log('Resposta bruta da Sonax:', sonaxResultText);
+
+    let sonaxResult;
+    try {
+      sonaxResult = JSON.parse(sonaxResultText);
+    } catch (e) {
+      sonaxResult = { raw: sonaxResultText, error: 'Failed to parse JSON' };
+    }
+
     console.log('Chamada disparada com sucesso na Sonax:', sonaxResult);
 
     return NextResponse.json({

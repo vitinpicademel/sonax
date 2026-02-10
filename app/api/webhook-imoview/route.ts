@@ -153,8 +153,8 @@ async function buscarAtendimentoPorCodigo(
   codigoAtendimento: string | number,
   imoviewKey: string
 ) {
-  const MAX_RETRIES = 10;
-  const DELAY_MS = 3000; // 3 segundos
+  const MAX_RETRIES = 3;
+  const DELAY_MS = 2000; // 2 segundos
 
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
@@ -209,6 +209,63 @@ async function buscarAtendimentoPorCodigo(
       console.warn(`Atendimento ${codigoAtendimento} não encontrado na lista (tentativa ${i + 1}).`);
     } catch (error) {
       console.error(`Erro na tentativa ${i + 1} de buscar atendimento:`, error);
+    }
+  }
+
+  // Se não encontrar na API de Atendimentos, tentar na de Interessados (Leads)
+  console.log('⚠️ Atendimento não encontrado na API de Atendimentos. Tentando na API de Interessados...');
+
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      if (i > 0) {
+        console.log(`⏳ Aguardando ${DELAY_MS}ms antes da tentativa ${i + 1} (Interessados)...`);
+        await wait(DELAY_MS);
+      }
+
+      const { codigoAcesso, codigoUsuario } = await obterCodigoAcesso(imoviewKey);
+
+      const url = new URL(`${IMOVIEW_BASE_URL}/Interessado/App_RetornarInteressados`);
+      url.searchParams.set('numeroPagina', '1');
+      url.searchParams.set('numeroRegistros', '100');
+      // Interessado/App_RetornarInteressados usa parâmetros diferentes?
+      // Pela documentação padrão da Universal Software, costuma ser similar.
+      // Vamos assumir compatibilidade ou ajuste conforme erro.
+      url.searchParams.set('codigoUsuario', String(codigoUsuario));
+      url.searchParams.set('textoPesquisa', String(codigoAtendimento));
+
+      console.log(`Buscando interessado na Imoview (tentativa ${i + 1}): ${url.toString()}`);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          chave: imoviewKey,
+          codigoacesso: codigoAcesso,
+        },
+      });
+
+      const status = response.status;
+      const data = await response.json().catch(() => null);
+
+      console.log(`Resposta Interessado/App_RetornarInteressados (tentativa ${i + 1}):`, status, JSON.stringify(data, null, 2));
+
+      if (response.ok && data && Array.isArray(data.lista)) {
+        const interessadoEncontrado = data.lista.find(
+          (item: any) =>
+            item?.codigo == codigoAtendimento ||
+            String(item?.codigo) === String(codigoAtendimento)
+        );
+
+        if (interessadoEncontrado) {
+          console.log('✅ Lead encontrado na API de Interessados!');
+          return interessadoEncontrado;
+        }
+      }
+
+      console.warn(`Interessado ${codigoAtendimento} não encontrado na lista (tentativa ${i + 1}).`);
+
+    } catch (error) {
+      console.error(`Erro na tentativa ${i + 1} de buscar interessado:`, error);
     }
   }
 

@@ -147,54 +147,72 @@ async function obterCodigoAcesso(imoviewKey: string) {
 }
 
 // Busca o atendimento pelo código usando o endpoint oficial da Imoview
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function buscarAtendimentoPorCodigo(
   codigoAtendimento: string | number,
   imoviewKey: string
 ) {
-  const { codigoAcesso, codigoUsuario } = await obterCodigoAcesso(imoviewKey);
+  const MAX_RETRIES = 3;
+  const DELAY_MS = 2000; // 2 segundos
 
-  // Usar endpoint oficial de atendimentos (não mais o de Lead, que está retornando 404)
-  const url = new URL(`${IMOVIEW_BASE_URL}/Atendimento/App_RetornarAtendimentos`);
-  url.searchParams.set('numeroPagina', '1');
-  url.searchParams.set('numeroRegistros', '100');
-  url.searchParams.set('codigoUsuario', String(codigoUsuario));
-  url.searchParams.set('textoPesquisa', String(codigoAtendimento));
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      if (i > 0) {
+        console.log(`⏳ Aguardando ${DELAY_MS}ms antes da tentativa ${i + 1}...`);
+        await wait(DELAY_MS);
+      }
 
-  console.log(`Buscando atendimento na Imoview: ${url.toString()}`);
+      const { codigoAcesso, codigoUsuario } = await obterCodigoAcesso(imoviewKey);
 
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      chave: imoviewKey,
-      codigoacesso: codigoAcesso,
-    },
-  });
+      // Usar endpoint oficial de atendimentos (não mais o de Lead, que está retornando 404)
+      const url = new URL(`${IMOVIEW_BASE_URL}/Atendimento/App_RetornarAtendimentos`);
+      url.searchParams.set('numeroPagina', '1');
+      url.searchParams.set('numeroRegistros', '100');
+      url.searchParams.set('codigoUsuario', String(codigoUsuario));
+      url.searchParams.set('textoPesquisa', String(codigoAtendimento));
 
-  const status = response.status;
-  const data = await response.json().catch(() => null);
+      console.log(`Buscando atendimento na Imoview (tentativa ${i + 1}): ${url.toString()}`);
 
-  console.log('Resposta Lead/App_RetornarAtendimentos:', status, JSON.stringify(data, null, 2));
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          chave: imoviewKey,
+          codigoacesso: codigoAcesso,
+        },
+      });
 
-  if (!response.ok) {
-    throw new Error(`Erro na API Imoview Lead/App_RetornarAtendimentos (status ${status})`);
+      const status = response.status;
+      const data = await response.json().catch(() => null);
+
+      console.log(`Resposta Lead/App_RetornarAtendimentos (tentativa ${i + 1}):`, status, JSON.stringify(data, null, 2));
+
+      if (!response.ok) {
+        throw new Error(`Erro na API Imoview Lead/App_RetornarAtendimentos (status ${status})`);
+      }
+
+      if (!data || !Array.isArray(data.lista)) {
+        throw new Error('Resposta da Imoview sem lista de atendimentos');
+      }
+
+      const atendimentoEncontrado = data.lista.find(
+        (item: any) =>
+          item?.codigo == codigoAtendimento ||
+          String(item?.codigo) === String(codigoAtendimento)
+      );
+
+      if (atendimentoEncontrado) {
+        return atendimentoEncontrado;
+      }
+
+      console.warn(`Atendimento ${codigoAtendimento} não encontrado na lista (tentativa ${i + 1}).`);
+    } catch (error) {
+      console.error(`Erro na tentativa ${i + 1} de buscar atendimento:`, error);
+    }
   }
 
-  if (!data || !Array.isArray(data.lista)) {
-    throw new Error('Resposta da Imoview sem lista de atendimentos');
-  }
-
-  const atendimentoEncontrado = data.lista.find(
-    (item: any) =>
-      item?.codigo == codigoAtendimento ||
-      String(item?.codigo) === String(codigoAtendimento)
-  );
-
-  if (!atendimentoEncontrado) {
-    return null;
-  }
-
-  return atendimentoEncontrado;
+  return null;
 }
 
 export async function POST(request: NextRequest) {

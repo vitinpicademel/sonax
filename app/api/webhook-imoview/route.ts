@@ -385,6 +385,20 @@ export async function POST(request: NextRequest) {
     const sonaxResultText = await sonaxResponse.text();
     console.log('Resposta bruta da Sonax:', sonaxResultText);
 
+    // Verificar erro específico de falta de ramal
+    if (sonaxResultText.includes('SEM RAMAL DISPONIVEL')) {
+      console.error('❌ ERRO SONAX: Fila sem ramais disponíveis ou logados!');
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Fila Sonax sem ramais disponíveis ou logados',
+          telefone: telefoneLimpo,
+          sonaxResponse: sonaxResultText,
+        },
+        { status: 200 }
+      );
+    }
+
     let sonaxResult;
     try {
       sonaxResult = JSON.parse(sonaxResultText);
